@@ -4,10 +4,7 @@ from urllib.parse import urlparse, unquote, parse_qs
 from xml.etree import ElementTree
 from tqdm.auto import tqdm
 import os
-
-# Config
-email=""
-password=""
+import argparse
 
 class PlexDownloader:
     headers = {
@@ -153,7 +150,7 @@ class PlexDownloader:
 
         parsed_episodes = []
 
-        response = self_get_url(url)
+        response = self._get_url(url)
 
         if response:
             return self._parse_episodes(response['MediaContainer']['Metadata'])
@@ -188,7 +185,7 @@ class PlexDownloader:
                 parsed_media = self._parse_season(rating_key)
 
             elif media['type'] == "episode":
-                parsed_media = self._parse_episode(media)
+                parsed_media = [ self._parse_episode(media) ]
                 
             elif media['type'] == "movie":
                 parsed_media = self._parse_movie(media)
@@ -233,7 +230,6 @@ class PlexDownloader:
         print("Found %s media content to download" % len(contents))
 
         headers = {
-            **self.headers,
             'X-Plex-Token': self.access_token
         }
 
@@ -243,8 +239,12 @@ class PlexDownloader:
                 os.makedirs(content['folder'])
             
             file_name = os.path.join(content['folder'], content['filename'].replace("/", "-"))
-           
+        
             response = requests.get(content['url'], stream=True, headers=headers)
+
+            if response.status_code == 400:
+                print("Error getting %s" % content['title'])
+                continue
 
             with open(file_name, "wb") as fout:
                 with tqdm(
@@ -257,17 +257,35 @@ class PlexDownloader:
         return
 
     def parse_url(self, url):
+        if not url:
+            print("No url provided")
+            return False
+
         fragment = urlparse(url).fragment.strip('!').split('/')
         self.server_hash = fragment[2]
         self.rating_key = parse_qs(fragment[3].split('?')[1])['key'][0]
 
         return True
 
-    def __init__(self, email, password):
-        self.email = email
-        self.password = password
+    def command_line(self):
+        ap = argparse.ArgumentParser()
 
-plex = PlexDownloader(email, password)
-plex.parse_url("")
+        ap.add_argument("-u", "--username", required=True, help="Plex.TV Email/Username")
 
-plex.download()
+        ap.add_argument("-p", "--password", required=True, help="Plex.TV Password")
+
+        ap.add_argument("url", help="URL to Movie, Show, Season, Episode. TIP: Put url inside single quotes.")
+
+        args = ap.parse_args()
+        
+        self.email = args.username
+        self.password = args.password
+        self.parse_url(args.url)
+        self.download()
+
+    def __init__(self):
+        return
+
+if __name__ == "__main__":
+    plex = PlexDownloader()
+    plex.command_line()
