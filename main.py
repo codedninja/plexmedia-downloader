@@ -4,6 +4,7 @@ from urllib.parse import urlparse, unquote, parse_qs
 from xml.etree import ElementTree
 from tqdm.auto import tqdm
 import os
+import re
 import argparse
 
 class PlexDownloader:
@@ -16,6 +17,8 @@ class PlexDownloader:
     base_url = ""
 
     servers = {}
+    
+    error_reg = re.compile(r"hostname '[^']+' doesn't match '\*([^']+)'")
 
     def login(self):
         if self.token:
@@ -80,23 +83,25 @@ class PlexDownloader:
             return url
         except requests.exceptions.SSLError as e:
             string_error = str(e)
-
             if ".plex.direct" in string_error:
-                subdomain = str(e).split("doesn't match")[1].lstrip("'* ").rstrip("'\")")
+                error_match = self.error_reg.search(string_error)
+                
+                if error_match is not None : 
+                    
+                    subdomain = error_match.group(1)
+                    
+                    ip = server['address'].replace('.', '-')
 
-                ip = server['address'].replace('.', '-')
-
-                url = "https://"+ip+subdomain+":"+server['port']
-
-                r = requests.get(url, headers=headers)
-
-                if r.status_code == 200:
-                    self.base_url = url
-                    print("Found Plex.Direct URL %s" % self.base_url)
-                    return url
-                else:
-                    print("Couldn't find Direct.Plex url for Plex Media Server")
-                    return False
+                    url = "https://"+ip+subdomain+":"+server['port']
+                    r = requests.get(url, headers=headers)
+            
+                    if r.status_code == 200:
+                        self.base_url = url
+                        print("Found Plex.Direct URL %s" % self.base_url)
+                        return url
+                
+                print("Couldn't find Direct.Plex url for Plex Media Server")
+                return False
             else:
                 print("Custom cert is enabled, don't know what to do.")
                 return False
@@ -225,7 +230,6 @@ class PlexDownloader:
         print("Found %s servers" % server_count)
 
         server = self.servers[self.server_hash]
-
         print("Looking for Plex.Direct URL to %s" % server['name'])
         self._generate_baseurl()
 
