@@ -18,15 +18,20 @@ class PlexDownloader:
     servers = {}
 
     def login(self):
-        #login
-        payload = {
-            'user[login]': self.email,
-            'user[password]': self.password
-        }
-        
-        r = requests.post("https://plex.tv/users/sign_in.json", headers=self.headers, data=payload)
+        if self.token:
+            self.user = {
+                'authToken': self.token,
+            }
+        else:
+            #login
+            payload = {
+                'user[login]': self.email,
+                'user[password]': self.password
+            }
 
-        self.user = r.json()['user']
+            r = requests.post("https://plex.tv/users/sign_in.json", headers=self.headers, data=payload)
+
+            self.user = r.json()['user']
 
         return self.user
 
@@ -38,7 +43,7 @@ class PlexDownloader:
         }
 
         r = requests.get("https://plex.tv/pms/servers.xml", headers=headers)
-    
+
         tree = ElementTree.fromstring(r.text)
 
         for xml_server in tree.findall('Server'):
@@ -60,10 +65,10 @@ class PlexDownloader:
             **self.headers,
             'X-Plex-Token': server['access_token']
         }
-    
+
 
         host_port = server['address']+":"+server['port']
-    
+
         try:
             # Try getting host name
             url = "https://"+host_port
@@ -71,20 +76,20 @@ class PlexDownloader:
 
             self.base_url = url
             print("Found Plex.Direct URL %s" % self.base_url)
-            
+
             return url
         except requests.exceptions.SSLError as e:
             string_error = str(e)
 
             if ".plex.direct" in string_error:
                 subdomain = str(e).split("doesn't match")[1].lstrip("'* ").rstrip("'\")")
-           
+
                 ip = server['address'].replace('.', '-')
 
                 url = "https://"+ip+subdomain+":"+server['port']
 
                 r = requests.get(url, headers=headers)
-            
+
                 if r.status_code == 200:
                     self.base_url = url
                     print("Found Plex.Direct URL %s" % self.base_url)
@@ -95,7 +100,7 @@ class PlexDownloader:
             else:
                 print("Custom cert is enabled, don't know what to do.")
                 return False
-    
+
     def _get_url(self, url):
         headers = {
             **self.headers,
@@ -115,8 +120,8 @@ class PlexDownloader:
         response = self._get_url(url)
 
         if response:
-            return self._parse_episodes(response['MediaContainer']['Metadata']) 
-        
+            return self._parse_episodes(response['MediaContainer']['Metadata'])
+
         return False
 
     def _parse_episodes(self, episodes):
@@ -126,7 +131,7 @@ class PlexDownloader:
             if episode['type'] == "episode":
                 parsed_episode = self._parse_episode(episode)
                 parsed_episodes.append(parsed_episode)
-        
+
         return parsed_episodes
 
     def _parse_episode(self, episode):
@@ -186,17 +191,17 @@ class PlexDownloader:
 
             elif media['type'] == "episode":
                 parsed_media = [ self._parse_episode(media) ]
-                
+
             elif media['type'] == "movie":
                 parsed_media = self._parse_movie(media)
 
             else:
                 print("Media type %s isn't supported yet" % media['type'])
                 continue
-                
+
             media_content = media_content + parsed_media
         return media_content
-   
+
     def _get_metadata(self):
         url = self.base_url+self.rating_key
 
@@ -204,12 +209,16 @@ class PlexDownloader:
 
         if response:
             return self._parse_metadata(response['MediaContainer']['Metadata'])
-        
+
         return False
 
     def download(self):
         user = self.login()
-        print("Logged in as: %s" % user['username'])
+
+        if self.token:
+            print("Logged in with token")
+        else:
+            print("Logged in as: %s" % user['username'])
 
         servers = self.get_servers()
         server_count = len(servers)
@@ -237,9 +246,9 @@ class PlexDownloader:
             if not os.path.exists(content['folder']):
                 print("Directories don't exists, creating folders")
                 os.makedirs(content['folder'])
-            
+
             file_name = os.path.join(content['folder'], content['filename'].replace("/", "-"))
-        
+
             response = requests.get(content['url'], stream=True, headers=headers)
 
             if response.status_code == 400:
@@ -261,6 +270,7 @@ class PlexDownloader:
             print("No url provided")
             return False
 
+        print(url)
         fragment = urlparse(url).fragment.strip('!').split('/')
         self.server_hash = fragment[2]
         self.rating_key = parse_qs(fragment[3].split('?')[1])['key'][0]
@@ -270,16 +280,24 @@ class PlexDownloader:
     def command_line(self):
         ap = argparse.ArgumentParser()
 
-        ap.add_argument("-u", "--username", required=True, help="Plex.TV Email/Username")
+        ap.add_argument("-u", "--username", required=False, help="Plex.TV Email/Username")
 
-        ap.add_argument("-p", "--password", required=True, help="Plex.TV Password")
+        ap.add_argument("-p", "--password", required=False, help="Plex.TV Password")
+
+        ap.add_argument("-t", "--token", required=False, help="Plex Token")
 
         ap.add_argument("url", help="URL to Movie, Show, Season, Episode. TIP: Put url inside single quotes.")
 
         args = ap.parse_args()
-        
+
         self.email = args.username
         self.password = args.password
+        self.token = args.token
+
+        if ((self.email is None or self.password is None) and self.token is None):
+            print("Username and psasword or token is required")
+            quit(1)
+
         self.parse_url(args.url)
         self.download()
 
