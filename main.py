@@ -276,6 +276,8 @@ class PlexDownloader:
 
         ap.add_argument("-t", "--token", required=False, help="Plex Token")
 
+        ap.add_argument("-f", "--authfile", required=False, help="Path to a json file containing authentication data")
+
         ap.add_argument(
             "url", help="URL to Movie, Show, Season, Episode. TIP: Put url inside single quotes.")
 
@@ -287,12 +289,28 @@ class PlexDownloader:
         self.cookie = args.cookie
         self.original_filename = args.original_filename
 
-        if ((self.email is None or self.password is None) and self.token is None and self.cookie is None):
-            print("Username and psasword, token, or cookie is required")
-            quit(1)
+        if args.authfile is not None and self.cantAuthenticateUser():
+            with open(args.authfile, 'r') as f:
+                auth_data = json.load(f)
+            for field in ['email', 'password', 'token', 'cookie']:
+                if field in auth_data and type(auth_data[field]) == str:
+                    self.__dict__[field] = auth_data[field]
+
+        if self.cantAuthenticateUser():
+            if self.email is None:
+                self.email = input('Enter username > ')
+            if self.password is None:
+                try:
+                    from stdiomask import getpass
+                except ImportError:
+                    from getpass import getpass
+                self.password = getpass('Enter password > ')
 
         self.parse_url(args.url)
         self.download()
+    
+    def cantAuthenticateUser(self) :
+        return ((self.email is None or self.password is None) and self.token is None and self.cookie is None)
 
     def __init__(self):
         return

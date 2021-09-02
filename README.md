@@ -24,7 +24,7 @@ pip install requirements.txt
 URL can be any of the following ip:port, plex.direct:port, hostname:port, plex.tv
 
 ```
-usage: main.py [-h] -u USERNAME -p PASSWORD url
+usage: main.py [-h] [-u USERNAME] [-p PASSWORD] [-c COOKIE] [--original-filename] [-t TOKEN] [-f AUTHFILE] url
 
 positional arguments:
   url                   URL to Movie, Show, Season, Episode.
@@ -41,10 +41,25 @@ optional arguments:
   --original-filename   Name content by original name
   -t TOKEN, --token TOKEN
                         Plex Token
+  -f AUTHFILE, --authfile AUTHFILE
+                        Path to a json file containing authentication data
 ```
 
-## Example
+## Examples
 
 ```
 python main.py -u codedninja -p 3U7qYhaBAk8yfa 'https://app.plex.tv/desktop#!/server/0893cadc04a6f52efa052691d6a07c5b54890ca1/details?key=%2Flibrary%2Fmetadata%2F208649&context=source%3Ahub.tv.recentlyaired'
 ```
+
+```
+python main.py -f auth.json 'https://app.plex.tv/desktop#!/server/0893cadc04a6f52efa052691d6a07c5b54890ca1/details?key=%2Flibrary%2Fmetadata%2F208649&context=source%3Ahub.tv.recentlyaired'
+```
+
+Content of `auth.json` :
+```json
+{
+    "email": "codedninja",
+    "password": "3U7qYhaBAk8yfa"
+}
+```
+
