@@ -41,7 +41,7 @@ class PlexDownloader:
             r = requests.post("https://plex.tv/users/sign_in.json",
                               headers=self.headers, data=payload)
 
-        if r.status_code != 200:
+        if r.status_code != 201:
             print(r.json()["error"])
             quit(1)
 
